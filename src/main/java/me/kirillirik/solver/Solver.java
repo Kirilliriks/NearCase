@@ -82,10 +82,13 @@ public final class Solver {
                 continue;
             }
 
-            node.addChild("Person " + i);
+            final TreeNode subChild = node.addChild("Person " + i);
             final Set<Integer> subVisited = new HashSet<>(visited);
             subVisited.add(i);
-            //depthFind(personID)
+
+            if (subVisited.size() == personsAmount || depthFind(i, subChild, subVisited)) {
+                return true;
+            }
         }
 
         return false;
