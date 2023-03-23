@@ -30,7 +30,7 @@ public final class Window {
 
     public Window() {
         glslVersion = null;
-        solver = new Solver(5);
+        solver = new Solver();
     }
 
     public void init() {

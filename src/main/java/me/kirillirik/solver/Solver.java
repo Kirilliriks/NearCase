@@ -1,7 +1,10 @@
 package me.kirillirik.solver;
 
+import imgui.ImColor;
 import imgui.ImGui;
 import imgui.extension.imnodes.ImNodes;
+import imgui.extension.imnodes.flag.ImNodesColorStyle;
+import imgui.extension.imnodes.flag.ImNodesMiniMapLocation;
 
 import java.util.*;
 
@@ -17,13 +20,18 @@ public final class Solver {
     private boolean positioned = false;
 
 
-    public Solver(int personsAmount) {
-        this.personsAmount = personsAmount;
+    public Solver() {
+        this.personsAmount = 6;
         persons = new boolean[personsAmount * personsAmount];
 
         generatePersons();
         generateNodes();
         generateTree();
+
+        //depthFind(root);
+        //widthFind(Collections.singleton(root));
+        root.updateWidth();
+        root.updatePos();
     }
 
     private void generatePersons() {
@@ -31,7 +39,7 @@ public final class Solver {
 
         for (int i = 0; i < personsAmount; i++) {
 
-            int linksCount = personsAmount - 1;
+            int linksCount = personsAmount  - personsAmount / 2;
             for (int j = 0; j < linksCount; j++) {
                 final int link = random.nextInt(0, linksCount);
                 if (i == link) {
@@ -42,19 +50,11 @@ public final class Solver {
                 persons[link + i * personsAmount] = true;
             }
         }
-
-//        for (int i = 0; i < personsAmount; i++) {
-//            for (int j = 0; j < personsAmount; j++) {
-//                System.out.print(persons[i + j * personsAmount] + " | ");
-//            }
-//
-//            System.out.println();
-//        }
     }
 
     private void generateNodes() {
         for (int i = 0; i < personsAmount; i++) {
-            final Node node = new Node("Person " + i, i * 100, i * 100);
+            final Node node = new Node("Person " + i, i, i * Node.X_OFFSET, i * Node.Y_OFFSET);
             nodes.add(node);
 
             for (int j = 0; j < personsAmount; j++) {
@@ -72,26 +72,63 @@ public final class Solver {
     }
 
     private void generateTree() {
-        root = new TreeNode("Root", 0, 0);
-        depthFind(0, root, new HashSet<>());
+        root = new TreeNode(null,"Person 0", 0, (personsAmount + 2) * Node.X_OFFSET, 0);
     }
 
-    private boolean depthFind(int personID, TreeNode node, Set<Integer> visited) {
+    private boolean depthFind(TreeNode node) {
         for (int i = 0; i < personsAmount; i++) {
-            if (i == personID || !persons[i + personID * personsAmount] || visited.contains(i)) {
+            final int personID = node.getDataID();
+            if (i == node.getDataID() || !persons[i + personID * personsAmount] || node.getParentIDs().contains(i)) {
                 continue;
             }
 
-            final TreeNode subChild = node.addChild("Person " + i);
-            final Set<Integer> subVisited = new HashSet<>(visited);
-            subVisited.add(i);
+            final TreeNode subChild = node.addChild("Person " + i, i);
 
-            if (subVisited.size() == personsAmount || depthFind(i, subChild, subVisited)) {
+            if (subChild.getParentIDs().size() + 1 == personsAmount || depthFind(subChild)) {
+                subChild.getColor().set(0, 1.0f, 0);
                 return true;
             }
         }
+        node.getColor().set(1.0f, 0, 0);
 
         return false;
+    }
+
+    private void widthFind(Set<TreeNode> nodes) {
+        if (nodes.isEmpty()) {
+            return;
+        }
+
+        final Set<TreeNode> newNodes = new HashSet<>();
+
+        for (final TreeNode node : nodes) {
+            for (int i = 0; i < personsAmount; i++) {
+                final int personID = node.getDataID();
+                if (i == node.getDataID() || !persons[i + personID * personsAmount] || node.getParentIDs().contains(i)) {
+                    continue;
+                }
+
+                final TreeNode subChild = node.addChild("Person " + i, i);
+                subChild.getColor().set(1.0f, 0, 0);
+                newNodes.add(subChild);
+
+                if (subChild.getParentIDs().size() + 1 == personsAmount) {
+                    colorPath(0, 1.0f, 0, subChild);
+                    return;
+                }
+            }
+        }
+
+        widthFind(newNodes);
+    }
+
+    private void colorPath(float r, float g, float b, TreeNode node) {
+        if (node == null) {
+            return;
+        }
+
+        node.getColor().set(r, g, b);
+        colorPath(r, g, b, node.getParent());
     }
 
     public void update() {
@@ -101,11 +138,11 @@ public final class Solver {
 
         ImNodes.beginNodeEditor();
 
-
+        displayPersons();
         displayTreeNode(root);
         linkTreeNode(root);
 
-
+        ImNodes.miniMap(0.2f, ImNodesMiniMapLocation.BottomRight);
         ImNodes.endNodeEditor();
 
         ImGui.end();
@@ -132,6 +169,10 @@ public final class Solver {
     }
 
     private void displayNode(Node node) {
+        final Color color = node.getColor();
+        ImNodes.pushColorStyle(ImNodesColorStyle.NodeBackground,
+                ImColor.floatToColor(color.getR(), color.getG(), color.getB()));
+
         final int id = node.getID();
         ImNodes.beginNode(id);
         if (!positioned) {
@@ -153,14 +194,14 @@ public final class Solver {
 
     private void linkTreeNode(TreeNode node) {
         linkNode(node);
-        for (final var child : node.getChilds()) {
+        for (final var child : node.getChildren()) {
             linkTreeNode(child);
         }
     }
 
     private void displayTreeNode(TreeNode node) {
         displayNode(node);
-        for (final var child : node.getChilds()) {
+        for (final var child : node.getChildren()) {
             displayTreeNode(child);
         }
     }
