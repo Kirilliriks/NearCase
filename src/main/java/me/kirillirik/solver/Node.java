@@ -7,7 +7,7 @@ public class Node {
     protected static final int X_OFFSET = 120;
     protected static final int Y_OFFSET = 40;
 
-    private static int NODE_COUNTER = 0;
+    public static int NODE_COUNTER = 0;
 
     protected final int id;
     protected final int dataID;

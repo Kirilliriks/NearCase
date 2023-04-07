@@ -26,11 +26,11 @@ public final class Window {
     private String glslVersion;
     private long window;
 
-    private Solver solver;
+    private MainWindow mainWindow;
 
     public Window() {
         glslVersion = null;
-        solver = new Solver();
+        mainWindow = new MainWindow();
     }
 
     public void init() {
@@ -101,7 +101,7 @@ public final class Window {
             imGuiGlfw.newFrame();
             ImGui.newFrame();
 
-            solver.update();
+            mainWindow.update();
 
             ImGui.render();
             imGuiGl3.renderDrawData(ImGui.getDrawData());
