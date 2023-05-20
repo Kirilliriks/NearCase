@@ -5,7 +5,6 @@ import imgui.ImGui;
 import imgui.extension.imnodes.ImNodes;
 import imgui.extension.imnodes.flag.ImNodesColorStyle;
 import imgui.extension.imnodes.flag.ImNodesMiniMapLocation;
-import imgui.flag.ImGuiCol;
 
 import java.io.*;
 import java.util.*;
@@ -76,7 +75,6 @@ public final class Solver {
         citiesAmount = 5;
         cities = new int[citiesAmount * citiesAmount];
 
-
         try (final var writer = new BufferedWriter(new FileWriter("cities.txt"))) {
             for (int i = 0; i < citiesAmount; i++) {
                 for (int j = 0; j < citiesAmount; j++) {
@@ -84,22 +82,30 @@ public final class Solver {
                         continue;
                     }
 
-                    writer.write(j + ",");
-
                     final int distance = random.nextInt(1, 128);
                     cities[i + j * citiesAmount] = distance;
                     cities[j + i * citiesAmount] = distance;
+                }
+            }
 
-                    writer.write(String.valueOf(distance));
-                    if (j + 1 != citiesAmount) {
+            for (int i = 0; i < citiesAmount; i++) {
+                if (i > 0) {
+                    writer.write(";");
+                }
+
+                for (int j = 0; j < citiesAmount; j++) {
+                    if (i == j) {
+                        continue;
+                    }
+
+                    writer.write(j + "," + cities[i + j * citiesAmount]);
+
+                    if (j + 1 < citiesAmount && !(i + 1 == citiesAmount && j + 2 == citiesAmount)) {
                         writer.write(":");
                     }
                 }
-
-                if (i + 1 != citiesAmount) {
-                    writer.write(";");
-                }
             }
+
 
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -381,6 +387,9 @@ public final class Solver {
                 ImColor.floatToColor(color.getR(), color.getG(), color.getB()));
 
         ImNodes.pushColorStyle(ImNodesColorStyle.GridBackground,
+                ImColor.floatToColor(1, 1, 1));
+
+        ImNodes.pushColorStyle(ImNodesColorStyle.Link,
                 ImColor.floatToColor(1, 1, 1));
 
         final int id = node.getID();
