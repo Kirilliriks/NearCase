@@ -11,6 +11,7 @@ public final class TreeNode extends Node {
     private final List<TreeNode> children = new ArrayList<>();
     private final Set<Integer> parentIDs = new HashSet<>();
 
+    private int traveledDistance = 0;
     private int width = 0;
 
     public TreeNode(TreeNode parent, String title, int id, int x, int y) {
@@ -30,12 +31,9 @@ public final class TreeNode extends Node {
             return;
         }
 
-        final int childrenSize = children.size();
-        final double offset = width / (double) childrenSize;
-
-        int i = -childrenSize / 2;
+        int i = -children.size() / 2;
         for (final TreeNode child : children) {
-            child.y = (int) Math.round(y + i * offset * Y_OFFSET);
+            child.y = Math.round(y + i * child.width * Y_OFFSET);
             child.updatePos();
             i++;
         }
@@ -43,7 +41,7 @@ public final class TreeNode extends Node {
 
     public TreeNode addChild(String title, int dataID) {
         final var newChild = new TreeNode(this, title, dataID, x + X_OFFSET, y);
-        final var newChildIDS = newChild.getParentIDs();
+        final Set<Integer> newChildIDS = newChild.getParentsIDs();
         newChildIDS.addAll(parentIDs);
         newChildIDS.add(this.dataID);
 
@@ -67,15 +65,20 @@ public final class TreeNode extends Node {
         return parent;
     }
 
-    public int getWidth() {
-        return width;
+    public void setTraveledDistance(int traveledDistance) {
+        this.traveledDistance = traveledDistance;
+        setNodeInfo(traveledDistance);
     }
 
     public List<TreeNode> getChildren() {
         return children;
     }
 
-    public Set<Integer> getParentIDs() {
+    public Set<Integer> getParentsIDs() {
         return parentIDs;
+    }
+
+    public int getTraveledDistance() {
+        return traveledDistance;
     }
 }

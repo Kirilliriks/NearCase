@@ -6,10 +6,10 @@ import imgui.extension.imnodes.ImNodes;
 import imgui.flag.ImGuiConfigFlags;
 import imgui.gl3.ImGuiImplGl3;
 import imgui.glfw.ImGuiImplGlfw;
-import me.kirillirik.solver.Solver;
 import org.lwjgl.glfw.Callbacks;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWErrorCallback;
+import org.lwjgl.glfw.GLFWVidMode;
 import org.lwjgl.opengl.GL;
 
 import static org.lwjgl.glfw.GLFW.*;
@@ -68,8 +68,11 @@ public final class Window {
         glfwWindowHint(GLFW_MAXIMIZED, GLFW_TRUE);
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
 
-        width = 1920;
-        height = 1080;
+        final long primMonitor = glfwGetPrimaryMonitor();
+        final GLFWVidMode mode = glfwGetVideoMode(primMonitor);
+
+        width = mode.width();
+        height = mode.height();
         window = glfwCreateWindow(width, height, "Manul", NULL, NULL);
 
         if (window == NULL) {
@@ -93,6 +96,7 @@ public final class Window {
     }
 
     public void run() {
+        mainWindow.init();
 
         while (!glfwWindowShouldClose(window)) {
             glClearColor(0.1f, 0.09f, 0.1f, 1.0f);

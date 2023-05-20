@@ -17,6 +17,7 @@ public class Node {
     protected final Color color;
     protected final Set<Integer> links = new HashSet<>();
 
+    protected String nodeInfo;
     protected int x, y;
 
     public Node(String title, int dataID, int x, int y) {
@@ -40,6 +41,14 @@ public class Node {
 
     public void setY(int y) {
         this.y = y;
+    }
+
+    public void setNodeInfo(int nodeInfo) {
+        this.nodeInfo = String.valueOf(nodeInfo);
+    }
+
+    public void setNodeInfo(String nodeInfo) {
+        this.nodeInfo = nodeInfo;
     }
 
     public int getID() {
@@ -76,5 +85,9 @@ public class Node {
 
     public Set<Integer> getLinks() {
         return links;
+    }
+
+    public String getNodeInfo() {
+        return nodeInfo;
     }
 }

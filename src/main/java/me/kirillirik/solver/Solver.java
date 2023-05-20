@@ -5,20 +5,18 @@ import imgui.ImGui;
 import imgui.extension.imnodes.ImNodes;
 import imgui.extension.imnodes.flag.ImNodesColorStyle;
 import imgui.extension.imnodes.flag.ImNodesMiniMapLocation;
+import imgui.flag.ImGuiCol;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.io.IOException;
+import java.io.*;
 import java.util.*;
 
 public final class Solver {
 
-    private int personsAmount;
-    private boolean[] persons;
-
     private final List<Node> nodes = new ArrayList<>();
-    private final List<Node> sortedNodes = new ArrayList<>();
 
+
+    private int citiesAmount;
+    private int[] cities;
     private int linkID = 0;
     private TreeNode root = null;
     private boolean positioned = false;
@@ -29,7 +27,7 @@ public final class Solver {
     public Solver(int type) {
         Node.NODE_COUNTER = 0;
 
-        loadPersons();
+        cities();
         generateNodes();
 
         switch (type) {
@@ -40,24 +38,26 @@ public final class Solver {
     }
 
     /**
-     * Загрузка входных данных из файла Persons
+     * Загрузка входных данных из файла Cities
      */
-    private void loadPersons() {
-        try (final var reader = new BufferedReader(new FileReader("persons.txt"))) {
+    private void cities() {
+        try (final var reader = new BufferedReader(new FileReader("cities.txt"))) {
             final var data = reader.readLine();
 
-            final String[] personsData = data.split(":");
-            personsAmount = personsData.length;
-            persons = new boolean[personsAmount * personsAmount];
+            final String[] citiesData = data.split(";");
+            citiesAmount = citiesData.length;
+            cities = new int[citiesAmount * citiesAmount];
 
             int id = 0;
-            for (final String personData : personsData) {
+            for (final String cityData : citiesData) {
 
-                for (final String personID : personData.split(",")) {
-                    final int intPersonID = Integer.parseInt(personID);
+                for (final String cityInfo : cityData.split(":")) {
+                    final String[] linkData = cityInfo.split(",");
+                    final int intCityID = Integer.parseInt(linkData[0]);
+                    final int distance = Integer.parseInt(linkData[1]);
 
-                    persons[id + intPersonID * personsAmount] = true;
-                    persons[intPersonID + id * personsAmount] = true;
+                    cities[id + intCityID * citiesAmount] = distance;
+                    cities[intCityID + id * citiesAmount] = distance;
                 }
 
                 id++;
@@ -70,31 +70,49 @@ public final class Solver {
     /**
      * Генерация случайных входных данных
      */
-    private void generatePersons() {
+    private void generateCities() {
         final Random random = new Random();
 
-        for (int i = 0; i < personsAmount; i++) {
+        citiesAmount = 5;
+        cities = new int[citiesAmount * citiesAmount];
 
-            int linksCount = personsAmount  - personsAmount / 2;
-            for (int j = 0; j < linksCount; j++) {
-                final int link = random.nextInt(0, linksCount);
-                if (i == link) {
-                    continue;
+
+        try (final var writer = new BufferedWriter(new FileWriter("cities.txt"))) {
+            for (int i = 0; i < citiesAmount; i++) {
+                for (int j = 0; j < citiesAmount; j++) {
+                    if (i == j) {
+                        continue;
+                    }
+
+                    writer.write(j + ",");
+
+                    final int distance = random.nextInt(1, 128);
+                    cities[i + j * citiesAmount] = distance;
+                    cities[j + i * citiesAmount] = distance;
+
+                    writer.write(String.valueOf(distance));
+                    if (j + 1 != citiesAmount) {
+                        writer.write(":");
+                    }
                 }
 
-                persons[i + link * personsAmount] = true;
-                persons[link + i * personsAmount] = true;
+                if (i + 1 != citiesAmount) {
+                    writer.write(";");
+                }
             }
+
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 
     private void generateNodes() {
-        for (int i = 0; i < personsAmount; i++) {
-            final Node node = new Node("Person " + i, i, i * Node.X_OFFSET, i * Node.Y_OFFSET);
+        for (int i = 0; i < citiesAmount; i++) {
+            final Node node = new Node("City " + i, i, i * Node.X_OFFSET, i * Node.Y_OFFSET);
             nodes.add(node);
 
-            for (int j = 0; j < personsAmount; j++) {
-                if (i == j || !persons[i + j * personsAmount]) {
+            for (int j = 0; j < citiesAmount; j++) {
+                if (i == j || isCityDisconnected(cityDistance(i, j))) {
                     continue;
                 }
 
@@ -105,91 +123,176 @@ public final class Solver {
                 }
             }
         }
-
-        // Сортировка персон по количеству их знакомств
-        sortedNodes.addAll(sortNodes(nodes));
     }
 
     private void startAStar() {
-        final Node node = sortedNodes.get(0);
+        root = new TreeNode(null,"City " + 0, 0, (citiesAmount + 2) * Node.X_OFFSET, 0);
+        final Set<TreeNode> ends = new HashSet<>();
+        aStar(root, ends);
 
-        final int id = node.getID();
-        root = new TreeNode(null,"Person " + id, id, (personsAmount + 2) * Node.X_OFFSET, 0);
-        aStar(root);
+        final TreeNode lastEnd = ends.stream().reduce((treeNode, treeNode2) -> {
+            if (treeNode.getTraveledDistance() < treeNode2.getTraveledDistance()) {
+                return treeNode;
+            }
+            return treeNode2;
+        }).get();
+
+        colorPath(0, 1, 0, lastEnd.getChildren().get(0));
 
         root.updateWidth();
         root.updatePos();
     }
 
-    private boolean aStar(TreeNode currentNode) {
+    private int aStar(TreeNode currentNode, Set<TreeNode> ends) {
         final List<Node> childNodes = new ArrayList<>();
 
-        for (int i = 0; i < personsAmount; i++) {
-            final int personID = currentNode.getDataID();
-            if (i == currentNode.getDataID() || !persons[i + personID * personsAmount] || currentNode.getParentIDs().contains(i)) {
+        for (int i = 0; i < citiesAmount; i++) {
+            final int cityID = currentNode.getDataID();
+            final int distance = cityDistance(i, cityID);
+
+            if (i == currentNode.getDataID() || isCityDisconnected(distance) || currentNode.getParentsIDs().contains(i)) {
                 continue;
             }
 
             childNodes.add(nodes.get(i));
         }
-        childNodes.sort(Comparator.comparingInt(childNode -> -childNode.getLinks().size()));
 
-        final int personID = currentNode.getDataID();
+        final int cityID = currentNode.getDataID();
+        childNodes.sort(Comparator.comparingInt(childNode -> cityDistance(cityID, childNode.getDataID())));
+
         for (final var node : childNodes) {
             final int nodeID = node.getID();
-            if (nodeID == currentNode.getDataID() || !persons[nodeID + personID * personsAmount]) {
+            final int distance = cityDistance(nodeID, cityID);
+
+            final TreeNode subChild = currentNode.addChild("City " + nodeID, nodeID);
+            subChild.setTraveledDistance(currentNode.getTraveledDistance() + distance);
+            subChild.getColor().set(1.0f, 0, 0);
+
+            boolean skip = false;
+            for (final TreeNode end : ends) {
+                if (subChild.getTraveledDistance() > end.getTraveledDistance()) {
+                    skip = true;
+                    break;
+                }
+            }
+
+            if (skip) {
                 continue;
             }
 
-            final TreeNode subChild = currentNode.addChild("Person " + nodeID, nodeID);
+            final int subResult = aStar(subChild, ends);
+            for (final TreeNode end : ends) {
+                if (subResult > end.getTraveledDistance()) {
+                    skip = true;
+                    break;
+                }
+            }
 
-            if (subChild.getParentIDs().size() + 1 == personsAmount || depthFind(subChild)) {
-                subChild.getColor().set(0, 1.0f, 0);
-                return true;
+            if (skip) {
+                continue;
+            }
+
+            if (subChild.getParentsIDs().size() + 1 == citiesAmount) {
+                ends.add(subChild);
+                final var endOfPath = subChild.addChild("City 0", 0);
+                endOfPath.setTraveledDistance(subChild.getTraveledDistance() + cityDistance(subChild.getDataID(), endOfPath.dataID));
+                endOfPath.getColor().set(1.0f, 0, 0);
+                return endOfPath.getTraveledDistance();
             }
         }
-        currentNode.getColor().set(1.0f, 0, 0);
 
-        return false;
+        return 0;
     }
 
     private void startDeptFind() {
-        root = new TreeNode(null,"Person 0", 0, (personsAmount + 2) * Node.X_OFFSET, 0);
-        depthFind(root);
+        root = new TreeNode(null,"City 0", 0, (citiesAmount + 2) * Node.X_OFFSET, 0);
+        final var ends = new HashSet<TreeNode>();
+        depthFind(root, ends);
+
+        final TreeNode lastEnd = ends.stream().reduce((treeNode, treeNode2) -> {
+            if (treeNode.getTraveledDistance() < treeNode2.getTraveledDistance()) {
+                return treeNode;
+            }
+            return treeNode2;
+        }).get();
+
+        colorPath(0, 1, 0, lastEnd.getChildren().get(0));
 
         root.updateWidth();
         root.updatePos();
     }
 
-    private boolean depthFind(TreeNode node) {
-        final int personID = node.getDataID();
+    private int depthFind(TreeNode node, Set<TreeNode> ends) {
+        final int cityID = node.getDataID();
 
-        for (int i = 0; i < personsAmount; i++) {
-            if (i == node.getDataID() || !persons[i + personID * personsAmount] || node.getParentIDs().contains(i)) {
+        for (int i = 0; i < citiesAmount; i++) {
+            final int distance = cityDistance(i, cityID);
+
+            if (i == node.getDataID() || isCityDisconnected(distance) || node.getParentsIDs().contains(i)) {
                 continue;
             }
 
-            final TreeNode subChild = node.addChild("Person " + i, i);
+            final TreeNode subChild = node.addChild("City " + i, i);
+            subChild.setTraveledDistance(node.getTraveledDistance() + distance);
+            subChild.getColor().set(1.0f, 0, 0);
 
-            if (subChild.getParentIDs().size() + 1 == personsAmount || depthFind(subChild)) {
-                subChild.getColor().set(0, 1.0f, 0);
-                return true;
+            boolean skip = false;
+            for (final TreeNode end : ends) {
+                if (subChild.getTraveledDistance() > end.getTraveledDistance()) {
+                    skip = true;
+                    break;
+                }
+            }
+
+            if (skip) {
+                continue;
+            }
+
+            final int subResult = depthFind(subChild, ends);
+            for (final TreeNode end : ends) {
+                if (subResult > end.getTraveledDistance()) {
+                    skip = true;
+                    break;
+                }
+            }
+
+            if (skip) {
+                continue;
+            }
+
+            if (subChild.getParentsIDs().size() + 1 == citiesAmount) {
+                ends.add(subChild);
+                final var endOfPath = subChild.addChild("City 0", 0);
+                endOfPath.setTraveledDistance(subChild.getTraveledDistance() + cityDistance(subChild.getDataID(), endOfPath.dataID));
+                endOfPath.getColor().set(1.0f, 0, 0);
+                return endOfPath.getTraveledDistance();
             }
         }
+
         node.getColor().set(1.0f, 0, 0);
 
-        return false;
+        return 0;
     }
 
     private void startWidthFind() {
-        root = new TreeNode(null,"Person 0", 0, (personsAmount + 2) * Node.X_OFFSET, 0);
-        widthFind(Collections.singleton(root));
+        root = new TreeNode(null,"City 0", 0, (citiesAmount + 2) * Node.X_OFFSET, 0);
+        final Set<TreeNode> ends = new HashSet<>();
+        widthFind(Collections.singleton(root), ends);
+
+        final TreeNode lastEnd = ends.stream().reduce((treeNode, treeNode2) -> {
+            if (treeNode.getTraveledDistance() < treeNode2.getTraveledDistance()) {
+                return treeNode;
+            }
+            return treeNode2;
+        }).get();
+
+        colorPath(0, 1, 0, lastEnd.getChildren().get(0));
 
         root.updateWidth();
         root.updatePos();
     }
 
-    private void widthFind(Set<TreeNode> nodes) {
+    private void widthFind(Set<TreeNode> nodes, Set<TreeNode> ends) {
         if (nodes.isEmpty()) {
             return;
         }
@@ -197,25 +300,42 @@ public final class Solver {
         final Set<TreeNode> newNodes = new HashSet<>();
 
         for (final TreeNode node : nodes) {
-            final int personID = node.getDataID();
+            final int cityID = node.getDataID();
 
-            for (int i = 0; i < personsAmount; i++) {
-                if (i == node.getDataID() || !persons[i + personID * personsAmount] || node.getParentIDs().contains(i)) {
+            for (int i = 0; i < citiesAmount; i++) {
+                final int distance = cityDistance(i, cityID);
+
+                if (i == node.getDataID() || isCityDisconnected(distance) || node.getParentsIDs().contains(i)) {
                     continue;
                 }
 
-                final TreeNode subChild = node.addChild("Person " + i, i);
+                final TreeNode subChild = node.addChild("City " + i, i);
+                subChild.setTraveledDistance(node.getTraveledDistance() + distance);
                 subChild.getColor().set(1.0f, 0, 0);
                 newNodes.add(subChild);
 
-                if (subChild.getParentIDs().size() + 1 == personsAmount) {
-                    colorPath(0, 1.0f, 0, subChild);
-                    return;
+                boolean skip = false;
+                for (final TreeNode end : ends) {
+                    if (subChild.getTraveledDistance() > end.getTraveledDistance()) {
+                        skip = true;
+                        break;
+                    }
+                }
+
+                if (skip) {
+                    continue;
+                }
+
+                if (subChild.getParentsIDs().size() + 1 == citiesAmount) {
+                    ends.add(subChild);
+                    final var endOfPath = subChild.addChild("City 0", 0);
+                    endOfPath.setTraveledDistance(subChild.getTraveledDistance() + cityDistance(subChild.getDataID(), endOfPath.dataID));
+                    endOfPath.getColor().set(1.0f, 0, 0);
                 }
             }
         }
 
-        widthFind(newNodes);
+        widthFind(newNodes, ends);
     }
 
     private void colorPath(float r, float g, float b, TreeNode node) {
@@ -230,35 +350,16 @@ public final class Solver {
     public void update() {
         linkID = 0;
 
-        ImGui.begin("Test");
-
-        if (ImGui.button("Return")) {
-            needClose = true;
-        }
-
         ImNodes.beginNodeEditor();
 
-        displayPersons();
         displayTreeNode(root);
         linkTreeNode(root);
 
         ImNodes.miniMap(0.2f, ImNodesMiniMapLocation.BottomRight);
         ImNodes.endNodeEditor();
 
-        ImGui.end();
-
         if (!positioned) {
             positioned = true;
-        }
-    }
-
-    private void displayPersons() {
-        for (final var node : nodes) {
-            displayNode(node);
-        }
-
-        for (final var node : nodes) {
-            linkNode(node);
         }
     }
 
@@ -273,6 +374,9 @@ public final class Solver {
         ImNodes.pushColorStyle(ImNodesColorStyle.NodeBackground,
                 ImColor.floatToColor(color.getR(), color.getG(), color.getB()));
 
+        ImNodes.pushColorStyle(ImNodesColorStyle.NodeOutline,
+                ImColor.floatToColor(color.getR(), color.getG(), color.getB()));
+
         final int id = node.getID();
         ImNodes.beginNode(id);
         if (!positioned) {
@@ -280,8 +384,15 @@ public final class Solver {
         }
 
         ImNodes.beginNodeTitleBar();
+        ImGui.pushStyleColor(ImGuiCol.FrameBg, 0, 0, 0, 0);
         ImGui.text(node.getTitle());
+        ImGui.popStyleColor();
         ImNodes.endNodeTitleBar();
+
+        final String nodeInfo = node.getNodeInfo();
+        if (nodeInfo != null) {
+            ImGui.text(nodeInfo);
+        }
 
         ImNodes.beginInputAttribute(node.getInputID());
         ImNodes.endInputAttribute();
@@ -306,8 +417,12 @@ public final class Solver {
         }
     }
 
-    private List<Node> sortNodes(List<Node> nodes) {
-        return nodes.stream().sorted(Comparator.comparing(node -> -node.getLinks().size())).toList();
+    public int cityDistance(int first, int second) {
+        return cities[first + second * citiesAmount];
+    }
+
+    public boolean isCityDisconnected(int distance) {
+        return distance <= 0;
     }
 
     public boolean isNeedClose() {
