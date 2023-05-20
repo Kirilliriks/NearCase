@@ -377,6 +377,12 @@ public final class Solver {
         ImNodes.pushColorStyle(ImNodesColorStyle.NodeOutline,
                 ImColor.floatToColor(color.getR(), color.getG(), color.getB()));
 
+        ImNodes.pushColorStyle(ImNodesColorStyle.TitleBar,
+                ImColor.floatToColor(color.getR(), color.getG(), color.getB()));
+
+        ImNodes.pushColorStyle(ImNodesColorStyle.GridBackground,
+                ImColor.floatToColor(1, 1, 1));
+
         final int id = node.getID();
         ImNodes.beginNode(id);
         if (!positioned) {
@@ -384,9 +390,7 @@ public final class Solver {
         }
 
         ImNodes.beginNodeTitleBar();
-        ImGui.pushStyleColor(ImGuiCol.FrameBg, 0, 0, 0, 0);
         ImGui.text(node.getTitle());
-        ImGui.popStyleColor();
         ImNodes.endNodeTitleBar();
 
         final String nodeInfo = node.getNodeInfo();

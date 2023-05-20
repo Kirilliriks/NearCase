@@ -33,7 +33,7 @@ public final class TreeNode extends Node {
 
         int i = -children.size() / 2;
         for (final TreeNode child : children) {
-            child.y = Math.round(y + i * child.width * Y_OFFSET);
+            child.y = y + i * child.width * Y_OFFSET;
             child.updatePos();
             i++;
         }

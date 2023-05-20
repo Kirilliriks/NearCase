@@ -26,7 +26,7 @@ public final class Window {
     private String glslVersion;
     private long window;
 
-    private MainWindow mainWindow;
+    private final MainWindow mainWindow;
 
     public Window() {
         glslVersion = null;
